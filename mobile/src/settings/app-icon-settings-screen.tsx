@@ -18,8 +18,10 @@ export default function AppIconSettingsScreen({
   const [iconId, setIconId] = useState<AppIconId>(DEFAULT_APP_ICON_ID)
   const [supported, setSupported] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Why: a tap made before the initial read resolves must not be overwritten by that read.
-  const userSelected = useRef(false)
+  // Why: only the latest tap may decide the checkmark; older reads and changes are stale.
+  const latestRequest = useRef(0)
+  // Why: iOS rejects an icon change while another is in flight, so changes run one at a time.
+  const pendingChange = useRef(Promise.resolve())
 
   useEffect(() => {
     let active = true
@@ -29,7 +31,7 @@ export default function AppIconSettingsScreen({
           return
         }
         setSupported(loaded.supported)
-        if (!userSelected.current) {
+        if (latestRequest.current === 0) {
           setIconId(loaded.iconId)
         }
       },
@@ -49,13 +51,27 @@ export default function AppIconSettingsScreen({
       if (next === iconId) {
         return
       }
-      const previous = iconId
-      userSelected.current = true
+      const request = ++latestRequest.current
+      const isLatest = () => request === latestRequest.current
       setError(null)
       setIconId(next)
-      void saveAppIcon(next).catch(() => {
-        setIconId(previous)
-        setError('Could not change the app icon. Try again.')
+      pendingChange.current = pendingChange.current.then(async () => {
+        if (!isLatest()) {
+          return
+        }
+        try {
+          await saveAppIcon(next)
+        } catch {
+          if (!isLatest()) {
+            return
+          }
+          setError('Could not change the app icon. Try again.')
+          // The OS knows which icon is actually in place after a failure.
+          const loaded = await loadAppIcon().catch(() => null)
+          if (loaded && isLatest()) {
+            setIconId(loaded.iconId)
+          }
+        }
       })
     },
     [iconId]

@@ -92,6 +92,41 @@ describe('app icon settings', () => {
     expect(checkedLabel()).toBe('Blue Orca')
   })
 
+  it('ignores a failure from a change the user has already superseded', async () => {
+    let rejectBlue: (error: Error) => void = () => {}
+    switcher.loadAppIcon.mockResolvedValue({ supported: true, iconId: 'classic' })
+    switcher.saveAppIcon.mockImplementation((iconId: string) =>
+      iconId === 'blue'
+        ? new Promise((_resolve, reject) => (rejectBlue = reject))
+        : Promise.resolve()
+    )
+    await render()
+    await act(async () => option('Blue Orca').props.onPress())
+    await act(async () => option('Watercolor Orca').props.onPress())
+    await act(async () => rejectBlue(new Error('denied')))
+    expect(switcher.saveAppIcon.mock.calls).toEqual([['blue'], ['watercolor']])
+    expect(checkedLabel()).toBe('Watercolor Orca')
+    expect(alertText()).toBeUndefined()
+  })
+
+  it('runs one change at a time and skips queued changes that were superseded', async () => {
+    let resolveBlue: () => void = () => {}
+    switcher.loadAppIcon.mockResolvedValue({ supported: true, iconId: 'classic' })
+    switcher.saveAppIcon.mockImplementation((iconId: string) =>
+      iconId === 'blue'
+        ? new Promise<void>((resolve) => (resolveBlue = resolve))
+        : Promise.resolve()
+    )
+    await render()
+    await act(async () => option('Blue Orca').props.onPress())
+    await act(async () => option('Watercolor Orca').props.onPress())
+    await act(async () => option('Classic Orca').props.onPress())
+    expect(switcher.saveAppIcon.mock.calls).toEqual([['blue']])
+    await act(async () => resolveBlue())
+    expect(switcher.saveAppIcon.mock.calls).toEqual([['blue'], ['classic']])
+    expect(checkedLabel()).toBe('Classic Orca')
+  })
+
   it('disables every option when the device cannot switch icons', async () => {
     switcher.loadAppIcon.mockResolvedValue({ supported: false, iconId: 'classic' })
     await render()
