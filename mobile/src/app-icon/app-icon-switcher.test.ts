@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { APP_ICON_OPTIONS } from '../../../src/shared/app-icon'
 import type { NativeAppIcon } from './native-app-icon'
 
-const native = vi.hoisted(() => ({ current: null as NativeAppIcon | null }))
+const native = vi.hoisted((): { current: NativeAppIcon | null } => ({ current: null }))
 vi.mock('./native-app-icon', () => ({
   get nativeAppIcon() {
     return native.current

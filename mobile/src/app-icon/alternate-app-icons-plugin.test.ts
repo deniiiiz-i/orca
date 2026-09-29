@@ -64,8 +64,8 @@ describe('configured alternate icons', () => {
   })
 
   it('names icons exactly as the runtime asks for them', () => {
-    for (const iconId of Object.keys(configuredIcons())) {
-      expect(alternateIconNameFor(iconId as never)).toBe(alternateIconName(iconId))
+    for (const { id } of APP_ICON_OPTIONS.filter(({ id }) => id !== DEFAULT_APP_ICON_ID)) {
+      expect(alternateIconNameFor(id)).toBe(alternateIconName(id))
     }
   })
 })
@@ -101,8 +101,24 @@ describe('iOS prebuild output', () => {
   })
 })
 
+type ManifestElement = { $: Record<string, string> }
+type IntentFilter = {
+  action?: ManifestElement[]
+  category?: ManifestElement[]
+  data?: ManifestElement[]
+}
+type ExpoManifest = {
+  manifest: {
+    $: Record<string, string>
+    application: (ManifestElement & {
+      activity: (ManifestElement & { 'intent-filter': IntentFilter[] })[]
+      'activity-alias'?: ManifestElement[]
+    })[]
+  }
+}
+
 describe('Android prebuild output', () => {
-  function expoManifest() {
+  function expoManifest(): ExpoManifest {
     const launcher = {
       action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
       category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }]
@@ -130,9 +146,8 @@ describe('Android prebuild output', () => {
     }
   }
 
-  function aliasSummary(manifest: ReturnType<typeof expoManifest>) {
-    const application = manifest.manifest.application[0] as Record<string, unknown>
-    return (application['activity-alias'] as { $: Record<string, string> }[]).map(({ $ }) => ({
+  function aliasSummary(manifest: ExpoManifest) {
+    return (manifest.manifest.application[0]['activity-alias'] ?? []).map(({ $ }) => ({
       name: $['android:name'],
       enabled: $['android:enabled'],
       icon: $['android:icon'],
@@ -146,7 +161,7 @@ describe('Android prebuild output', () => {
     const mainActivity = manifest.manifest.application[0].activity[0]
     // Deep links stay on MainActivity; only the launcher filter moves.
     expect(mainActivity['intent-filter']).toHaveLength(1)
-    expect(mainActivity['intent-filter'][0].action[0].$['android:name']).toBe(
+    expect(mainActivity['intent-filter'][0].action?.[0].$['android:name']).toBe(
       'android.intent.action.VIEW'
     )
     expect(aliasSummary(manifest)).toEqual([
