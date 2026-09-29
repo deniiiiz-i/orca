@@ -92,6 +92,17 @@ describe('app icon settings', () => {
     expect(checkedLabel()).toBe('Blue Orca')
   })
 
+  it('falls back to the icon shown before the tap when the OS cannot be re-read', async () => {
+    switcher.loadAppIcon
+      .mockResolvedValueOnce({ supported: true, iconId: 'watercolor' })
+      .mockRejectedValue(new Error('unavailable'))
+    switcher.saveAppIcon.mockRejectedValue(new Error('denied'))
+    await render()
+    await act(async () => option('Blue Orca').props.onPress())
+    expect(checkedLabel()).toBe('Watercolor Orca')
+    expect(alertText()).toBe('Could not change the app icon. Try again.')
+  })
+
   it('ignores a failure from a change the user has already superseded', async () => {
     let rejectBlue: (error: Error) => void = () => {}
     switcher.loadAppIcon.mockResolvedValue({ supported: true, iconId: 'classic' })

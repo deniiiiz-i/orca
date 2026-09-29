@@ -51,6 +51,7 @@ export default function AppIconSettingsScreen({
       if (next === iconId) {
         return
       }
+      const previous = iconId
       const request = ++latestRequest.current
       const isLatest = () => request === latestRequest.current
       setError(null)
@@ -66,10 +67,10 @@ export default function AppIconSettingsScreen({
             return
           }
           setError('Could not change the app icon. Try again.')
-          // The OS knows which icon is actually in place after a failure.
+          // The OS knows which icon is actually in place; if it can't say, the change didn't apply.
           const loaded = await loadAppIcon().catch(() => null)
-          if (loaded && isLatest()) {
-            setIconId(loaded.iconId)
+          if (isLatest()) {
+            setIconId(loaded?.iconId ?? previous)
           }
         }
       })
